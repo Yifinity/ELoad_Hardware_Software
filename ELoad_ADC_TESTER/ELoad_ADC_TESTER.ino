@@ -10,6 +10,10 @@ float volt_sens[3];
 
 void setup() {
   Serial.begin(115200);
+
+  // Configure extenral voltage reference
+  analogReference(EXTERNAL); // 4.096V
+
   /* Initialize ADC */
   if(!ads1115.begin()){ // Initialize with default address (0x48)
     Serial.println("Failure to Initialize ADC");
@@ -35,9 +39,9 @@ void loop() {
   }
 
   // Voltage Readings
-  volt_sens[0] = analogRead(7) * (5 / 1023.0);
-  volt_sens[1] = analogRead(6) * (5 / 1023.0);
-  volt_sens[2] = analogRead(3) * (5 / 1023.0);
+  volt_sens[0] = analogRead(7) * (4.096 / 1023.0);
+  volt_sens[1] = analogRead(6) * (4.096 / 1023.0);
+  volt_sens[2] = analogRead(3) * (4.096 / 1023.0);
   
 
   // Present Results:
