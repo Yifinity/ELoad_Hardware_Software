@@ -19,10 +19,13 @@ float temperature_readings[3];
 Adafruit_MCP4728 dac;
 float channel_settings[3];
 
+float external_reference = 4.096; // External reference voltage
 
 void setup() {
   Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
+
+  analogReference(EXTERNAL); 
 
   if (!dac.begin()) {
   Serial.println("DAC initialization failure");
@@ -78,17 +81,17 @@ void loop() {
   }
 
   // Voltage Readings
-  volt_sens[0] = analogRead(7) * (5 / 1023.0) * 4;
-  volt_sens[1] = analogRead(6) * (5 / 1023.0) * 4;
-  volt_sens[2] = analogRead(3) * (5 / 1023.0) * 4;
+  volt_sens[0] = analogRead(7) * (external_reference / 1023.0) * 5;
+  volt_sens[1] = analogRead(6) * (external_reference / 1023.0) * 5;
+  volt_sens[2] = analogRead(3) * (external_reference / 1023.0) * 5;
   
 
   // Present Results:
   // Serial.print("VALUE | "); Serial.print("CHANNEL 1 | ");   Serial.print("CHANNEL 2 | ");  Serial.println("CHANNEL 3");
   temperature_readings[0] = thermo_input1.readThermocoupleTemperature(); 
   temperature_readings[1] = thermo_input2.readThermocoupleTemperature(); 
-  // temperature_readings[2] = thermo_input3.readThermocoupleTemperature(); 
-  temperature_readings[2] = 50;
+  temperature_readings[2] = thermo_input3.readThermocoupleTemperature(); 
+  // temperature_readings[2] = 50;
 
   Serial.print(temperature_readings[0]); Serial.print(","); Serial.print(temperature_readings[1]); Serial.print(","); Serial.print(temperature_readings[2]); Serial.print(",");
   Serial.print(curr_sens[0]); Serial.print(","); Serial.print(curr_sens[1]); Serial.print(","); Serial.print(curr_sens[2]); Serial.print(",");
