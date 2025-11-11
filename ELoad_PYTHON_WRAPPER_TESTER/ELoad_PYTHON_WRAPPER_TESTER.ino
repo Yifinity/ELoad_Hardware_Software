@@ -107,11 +107,22 @@ void loop() {
     input_message.trim();
 
     // Split by commas
-    float values[6] = {NAN, NAN, NAN, NAN, NAN, NAN};
+    /* 
+    0: Target Load, 
+    1: Test Type,
+    2: Target
+    3: Startpoint:
+    4: Current Increment
+    5: Seconds Per Step
+    6: Voltage Cutoff
+    */
+
+    float values[7] = {NAN, NAN, NAN, NAN, NAN, NAN, NAN};
     int index = 0;
 
+
     int lastIndex = 0;
-    while (index < 6) {
+    while (index < 7) {
       int commaIndex = input_message.indexOf(',', lastIndex);
       if (commaIndex == -1) commaIndex = input_message.length();
 
@@ -125,37 +136,57 @@ void loop() {
     }
 
     // Interpret DAC command
-    int target_channel = (int)values[0]; // First field: DAC channel
-    float target_voltage = values[2] / 10;    // Third field: target voltage && account for 10X multiplier
-    
+    int target_channel = (int)values[0]; 
+    int test_type = (int)values[1]; // 0: Constant Load, 1: Constant Current, 2: Profile
+    // Split by commas
+    /* 
+    0: Target Load, 
+    1: Test Type,
+    2: Target
+    3: Startpoint:
+    4: Current Increment
+    5: Seconds Per Step
+    6: Voltage Cutoff
+    */
+    float target = values[2] / 10;    
+    float start_current = values[3]; 
+    float curr_increment = values[4];
+    float secs_per_step = values[5];
+    float volt_cutoff = values[6];
 
-    if (!isnan(target_channel) && !isnan(target_voltage)) {
-      uint16_t output_bits = (uint16_t)((target_voltage / 5.0) * 4095.0);
-      // Serial.print("Setting Channel ");
-      // Serial.print(target_channel);
-      // Serial.print(" to target voltage ");
-      // Serial.print(target_voltage);
-      // Serial.print("V or ");
-      // Serial.print(output_bits);
-      // Serial.println(" bits");
+    if (!isnan(target_channel) && !isnan(target) && !isnan(test_type)) {
+      if(test_type == 0){ // Constant Load:
+        Serial.print("Channel "); Serial.print(target_channel); Serial.print(" has constant load of ");
+        Serial.print(target); Serial.println("A"); 
+        bool success = false; 
+        uint16_t output_bits = (uint16_t)((target / 5.0) * 4095.0);
+        switch (target_channel) {
+          case 0: success = dac.setChannelValue(MCP4728_CHANNEL_A, output_bits); break;
+          case 1: success = dac.setChannelValue(MCP4728_CHANNEL_B, output_bits); break;
+          case 2: success = dac.setChannelValue(MCP4728_CHANNEL_C, output_bits); break;
+        }
 
-      bool success = false;
-      Serial.println(target_channel); 
-      switch (target_channel) {
-        case 0: success = dac.setChannelValue(MCP4728_CHANNEL_A, output_bits); break;
-        case 1: success = dac.setChannelValue(MCP4728_CHANNEL_B, output_bits); break;
-        case 2: success = dac.setChannelValue(MCP4728_CHANNEL_C, output_bits); break;
-      }
+        if (success) {
+          Serial.println("Command Successful");
+        } else {
+          Serial.println("Command Failed");
+        }
+      }else if(test_type == 1){
+        // Constant 
+        Serial.print("Channel"); Serial.print(target_channel); Serial.print(" has CONSTANT CURRENT OF ");
+        Serial.println(target);
+        Serial.print("Channel"); Serial.print(target_channel); Serial.print(" has CONSTANT CURRENT OF ");
+        Serial.println(target);
+        Serial.print("Channel"); Serial.print(target_channel); Serial.print(" has CONSTANT CURRENT OF ");
+        Serial.println(target);
+      }else if(test_type == 2){
+        Serial.print("Channel"); Serial.print(target_channel); Serial.print(" has PROFILE WITH START:");
+        Serial.println(start_current); Serial.print(" | END:"); Serial.print(target); Serial.print(" | Inc: ");
+        Serial.print(curr_increment); Serial.print(" | At steps/sec: "); Serial.print(secs_per_step); Serial.print(" | Voltage Cutoff"); Serial.println(volt_cutoff); 
 
-      if (success) {
-        Serial.println("Command Successful");
-      } else {
-        Serial.println("Command Failed");
+        Serial.print("Channel"); Serial.print(target_channel); Serial.print(" has CONSTANT CURRENT OF ");
       }
     }
-
   }
-
-
   delay(100);
 }

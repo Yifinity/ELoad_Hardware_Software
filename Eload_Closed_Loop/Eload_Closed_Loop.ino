@@ -23,10 +23,13 @@ Adafruit_MCP4728 dac;
 float channel_settings[3];
 
 // PID Constants
-float current_error; 
-float kP; 
-float deadband; 
-float last_time; 
+// float current_error; 
+float kP = 1; 
+float deadband = 0.001; //  used to see if we've hit 
+float last_time = 0; 
+float target_current; 
+int target_channel = -1; 
+float start_time; 
 
 void setup(void) {
   Serial.begin(115200);
@@ -70,6 +73,7 @@ void setup(void) {
 }
 
 char channel_input;
+int output_bits; 
 
 void loop() {
   while(Serial.available() == 0) {
@@ -98,14 +102,52 @@ void loop() {
     temperature_readings[2] = 200; 
   
 
-    Serial.println("--------------------------------------------------------------");
-    Serial.print("VALUE   | "); Serial.print("CHANNEL 1 | ");   Serial.print("CHANNEL 2 | ");  Serial.println("CHANNEL 3");
-    Serial.print("VOLT(V) |   "); Serial.print(volt_sens[0]); Serial.print("       "); Serial.print(volt_sens[1]); Serial.print("       "); Serial.println(volt_sens[2]); 
-    Serial.print("CURR(V) |   "); Serial.print(curr_sens[0]); Serial.print("       "); Serial.print(curr_sens[1]); Serial.print("       "); Serial.println(curr_sens[2]);
-    Serial.print("TEMP(V) |   "); Serial.print(temp_sens[0]); Serial.print("       "); Serial.print(temp_sens[1]); Serial.print("       "); Serial.println(temp_sens[2]); 
-    Serial.print("THERM(C)|   "); Serial.print(temperature_readings[0]); Serial.print("      "); Serial.print(temperature_readings[1]); Serial.print("       "); Serial.println(temperature_readings[2]); 
-    Serial.print("LOAD(V) |   "); Serial.print(channel_settings[0]); Serial.print("       "); Serial.print(channel_settings[1]); Serial.print("       "); Serial.println(channel_settings[2]); 
-    Serial.println("Enter Target Channel (A-C): ");
+    // Serial.println("--------------------------------------------------------------");
+    // Serial.print("VALUE   | "); Serial.print("CHANNEL 1 | ");   Serial.print("CHANNEL 2 | ");  Serial.println("CHANNEL 3");
+    // Serial.print("VOLT(V) |   "); Serial.print(volt_sens[0]); Serial.print("       "); Serial.print(volt_sens[1]); Serial.print("       "); Serial.println(volt_sens[2]); 
+    Serial.println("CURR(V) |   "); Serial.print(curr_sens[0]);
+    // Serial.print("TEMP(V) |   "); Serial.print(temp_sens[0]); Serial.print("       "); Serial.print(temp_sens[1]); Serial.print("       "); Serial.println(temp_sens[2]); 
+    // Serial.print("THERM(C)|   "); Serial.print(temperature_readings[0]); Serial.print("      "); Serial.print(temperature_readings[1]); Serial.print("       "); Serial.println(temperature_readings[2]); 
+    // Serial.print("LOAD(V) |   "); Serial.print(channel_settings[0]); Serial.print("       "); Serial.print(channel_settings[1]); Serial.print("       "); Serial.println(channel_settings[2]); 
+    // Serial.println("Enter Target Channel (A-C): ");
+    
+    
+    // Closed Loop
+  if(target_channel != -1){
+      if(last_time == 0){
+      output_bits = target_current / 10 * (4096 / 5); // Starting point. 
+    }
+
+    last_time = millis(); 
+
+    float present_current = curr_sens[target_channel] * 10; 
+    float error = target_current - present_current; 
+    int additional_output = error * kP  / 10 * (4096 / 5); 
+
+    if(abs(error) >= deadband){
+    // serial
+      output_bits += additional_output; 
+    }
+
+    if(output_bits > 4096 || output_bits < 0){
+      Serial.println("Bounds Abort"); 
+      output_bits = 0; 
+    }
+
+    Serial.print("Present Current: ");
+    Serial.print(present_current); 
+    Serial.print(" ERROR: ");
+    Serial.print(error);
+    Serial.print("Additional:"); 
+    Serial.print(additional_output); 
+    Serial.print(" OUTPUT: ");
+    Serial.println(output_bits); 
+
+  }
+  
+
+    
+    
     delay(200);
   } // Wait for response: 
 
@@ -117,21 +159,20 @@ void loop() {
     return; 
   }
 
-  float target_voltage = -1.0;  
+  target_current = -1.0;  
 
   // float voltage_input; 
   do{
     Serial.println("Enter Target Voltage (0-0.5V) for Channel " + String(channel_input) + ": ");
     while(Serial.available() == 0) {} // Wait for response: 
-    target_voltage = Serial.parseFloat();
+    target_current = Serial.parseFloat();
 
     // Clear everything up to the next '/n' - nessisary to ensure no new line error. 
     while(Serial.available() > 0) {Serial.read();}
 
-  } while (target_voltage < 0 || target_voltage > 0.5);
+  } while (target_current < 0 || target_current > 5);
 
-  int output_bits = target_voltage / 10 * (4096 / 5); 
-  int target_channel;
+
   switch(channel_input){
     case 'A':
       target_channel = 0; 
@@ -147,14 +188,22 @@ void loop() {
       return;
   }
 
-  Serial.print("Setting Channel " + String(target_channel)  + " to target voltage " + String(target_voltage) + " or "); Serial.print(output_bits); Serial.println(" bits"); 
+  if (target_current == 0){
+      Serial.println("Resetting OUR LAST TIME AND OUTPUT_BITs"); 
+      output_bits = 0;
+      last_time = 0;
+    }
 
 
-  if(dac.setChannelValue(target_channel, output_bits)){
-    // channel_settings[target_channel] = target_voltage; 
+  // Serial.print("Setting Channel " + String(target_channel)  + " to target voltage " + String(target_current) + " or "); Serial.print(output_bits); Serial.println(" bits"); 
+
+  int fixed_bits = target_current / 10 * (4096 / 5); // Used right now for comparison 
+  start_time = millis();  // Set our start time to be now. --> used for comparision. 
+  if(dac.setChannelValue(target_channel, fixed_bits)){
+    // channel_settings[target_channel] = target_current; 
     Serial.println("Command Successful");
   }else{
-    channel_settings[target_channel] = target_voltage;  // Comment OUT
+    channel_settings[target_channel] = target_current;  // Comment OUT
     Serial.println("Command Failed"); 
   }
 }
