@@ -108,6 +108,7 @@ void loop() {
 
     // Split by commas
     /* 
+    Inputs
     0: Target Load, 
     1: Test Type,
     2: Target
@@ -116,7 +117,6 @@ void loop() {
     5: Seconds Per Step
     6: Voltage Cutoff
     */
-
     float values[7] = {NAN, NAN, NAN, NAN, NAN, NAN, NAN};
     int index = 0;
 
