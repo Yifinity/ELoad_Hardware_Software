@@ -92,10 +92,18 @@ void clear_test_info(int target_channel){
 
 void loop() {
   // Voltage Readings
-  volt_sens[0] = analogRead(7) * (external_reference / 1023.0) * 5;
-  volt_sens[1] = analogRead(6) * (external_reference / 1023.0) * 5;
-  volt_sens[2] = analogRead(3) * (external_reference / 1023.0) * 5;
-  
+
+  // volt_sens[0] = analogRead(7) * (external_reference / 1023.0) * (590/(590 + 100)); // For max of 34.5 volts. 
+  // volt_sens[0] = analogRead(7) * (external_reference / 1023.0) * 5;
+  // volt_sens[1] = analogRead(6) * (external_reference / 1023.0) * 5;
+  // volt_sens[2] = analogRead(3) * (external_reference / 1023.0) * 5;
+
+  // volt_sens[0] = analogRead(7) * (5.0 / 1023) * (690/100); // For max of 34.5 volts
+  volt_sens[0] = analogRead(7) * (5 / 1023.0) * 5 * (5.0/6);  
+  volt_sens[1] = analogRead(6) * (5 / 1023.0) * 5 * (5.0/6);
+  volt_sens[2] = analogRead(3) * (5 / 1023.0) * 5 * (5.0/6);
+
+
   // Mosfet Temperature Readings
   for(int temp_idx = 0; temp_idx < 3; temp_idx++){
     temp_sens[temp_idx] = 100 * analogRead(2 - temp_idx) * (5 / 1023.0);
@@ -110,13 +118,12 @@ void loop() {
     }
   }
 
-  // Present Results:
-  // Serial.print("VALUE | "); Serial.print("CHANNEL 1 | ");   Serial.print("CHANNEL 2 | ");  Serial.println("CHANNEL 3");
+
   temperature_readings[0] = thermo_input1.readThermocoupleTemperature(); 
   temperature_readings[1] = thermo_input2.readThermocoupleTemperature(); 
   temperature_readings[2] = thermo_input3.readThermocoupleTemperature(); 
 
-
+  // Present Results:
   Serial.print(temperature_readings[0]); Serial.print(","); Serial.print(temperature_readings[1]); Serial.print(","); Serial.print(temperature_readings[2]); Serial.print(",");
   Serial.print(curr_sens[0]); Serial.print(","); Serial.print(curr_sens[1]); Serial.print(","); Serial.print(curr_sens[2]); Serial.print(",");
   Serial.print(volt_sens[0]); Serial.print(","); Serial.print(volt_sens[1]); Serial.print(","); Serial.print(volt_sens[2]); Serial.print(",");
@@ -147,16 +154,16 @@ void loop() {
           // Serial.print("Time Reached --> updating to ");
           load_test_info[load][1] += load_test_info[load][3]; //increase starting load by current increment
           // Serial.println(load_test_info[load][1]);
-          if(load_test_info[load][1] >= load_test_info[load][8]){ // if we are over the target, then stop
+          if((load_test_info[load][3] > 0 && load_test_info[load][1] >= load_test_info[load][8]) || (load_test_info[load][3] < 0 && load_test_info[load][1] <= load_test_info[load][8])){ // if we are outside bounds, stop
             // Serial.println("We are now over or at the target so we stop"); 
-            load_test_info[load][1] = load_test_info[load][8]; // Should we end test or not?
+            load_test_info[load][1] = load_test_info[load][8]; // Set to target so we don't change any more
           }
           load_test_info[load][6] = present_time; // Update our time
         }
 
       }
 
-      if(millis() - load_test_info[load][9] > pid_update_millis){ // Time to update
+      if(millis() - load_test_info[load][9] > pid_update_millis){ // Run PID loop iteration
         float present_current = curr_sens[load];
         // Serial.print("Current Read: ");
         // Serial.print(present_current); 
@@ -167,7 +174,7 @@ void loop() {
         // Serial.print(current_error); 
 
         if(abs(current_error) < error_threshold){
-          continue; // We're within a good threshold
+          continue; // We're within a good threshold so don't apply anything
         }
         int correction = round(current_error * load_test_info[load][10]); // P loop
         correction = constrain(correction, -400, 400); // max corretion
@@ -271,9 +278,12 @@ void loop() {
         } else {
           Serial.println("Command Failed");
         }
-      }else if(test_type == 1){
+      }else if(test_type == 1){ // Constant Current
         // Closed loop code: 
-        clear_test_info(target_channel);  // Clear
+        if(load_test_info[target_channel][0] != 1){ // if we're running a test and we get a command to change the target, we don't need to clear everything
+          clear_test_info(target_channel);
+        }
+        // clear_test_info(target_channel);  // Clear (?) DO WE NEED??? 
         load_test_info[target_channel][0] = test_type;
         load_test_info[target_channel][1] = target;
         load_test_info[target_channel][9] = millis();
@@ -288,19 +298,19 @@ void loop() {
         
       }else if(test_type == 2){
         if(!isnan(start_current) && !isnan(curr_increment) && !isnan(secs_per_step) && !isnan(volt_cutoff)){
-          if(curr_increment > target){
+          if(abs(curr_increment) > target){
             // Serial.println("ERROR --> increment is too high"); 
             return; 
           }
           clear_test_info(target_channel);  // May need to push under
           load_test_info[target_channel][0] = test_type; 
-          load_test_info[target_channel][1] = curr_increment + start_current; 
+          load_test_info[target_channel][1] = start_current; // starting point
           load_test_info[target_channel][2] = start_current;     
           load_test_info[target_channel][3] = curr_increment;
           load_test_info[target_channel][4] = secs_per_step;
           load_test_info[target_channel][5] = volt_cutoff; 
           load_test_info[target_channel][6] = millis(); // Get the most recent timestamp
-          load_test_info[target_channel][8] = target; //Starting should be the increment
+          load_test_info[target_channel][8] = target; //Starting should be the increment // this is the end current
           load_test_info[target_channel][9] = millis(); // Time for pid update
         }
 
